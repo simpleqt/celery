@@ -553,3 +553,27 @@ class test_sanitize_url:
         assert 'comp=list' in sanitized
         assert 'BlobEndpoint=https://acct.blob.core.windows.net/' in sanitized
         assert 'AccountName=acct' in sanitized
+
+    def test_azure_connection_string_with_endpoint_url_after_account_key(self):
+        """Azure secrets stay redacted when an endpoint URL follows them.
+
+        The Azure connection string used by the project itself
+        (:file:`docker/docker-compose.yml`) lists ``BlobEndpoint`` last, so
+        the ``://`` inside that endpoint must not make the string look like a
+        semicolon-separated list of multi-server URLs -- that path returns
+        early and leaves ``AccountKey`` unredacted.
+        """
+        url = (
+            'azureblockblob://'
+            'DefaultEndpointsProtocol=http;'
+            'AccountName=devstoreaccount1;'
+            'AccountKey=SECRET==;'
+            'BlobEndpoint=http://azurite:10000/devstoreaccount1'
+        )
+        for sanitized in (
+            sanitize_url(url),
+            filter_hidden_settings({'result_backend': url})['result_backend'],
+        ):
+            assert 'SECRET' not in sanitized
+            assert 'AccountKey=********' in sanitized
+            assert 'BlobEndpoint=http://azurite:10000/devstoreaccount1' in sanitized

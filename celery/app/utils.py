@@ -398,11 +398,6 @@ def sanitize_url(url, mask='*' * 8):
         if '://' not in url:
             return url
 
-        # If it is a semicolon-separated list of full URLs (e.g. sentinel://...;sentinel://...)
-        parts = url.split(';')
-        if len(parts) > 1 and any('://' in p for p in parts[1:]):
-            return ';'.join(sanitize_url(p.strip(), mask=mask) for p in parts)
-
         scheme, _, rest = url.partition('://')
 
         # Azure connection strings use semicolon-separated key=value pairs
@@ -413,6 +408,14 @@ def sanitize_url(url, mask='*' * 8):
             # so we must not split at these characters
             redacted_connection_string = _redact_azure_connection_string(rest, mask=mask)
             return f'{scheme}://{redacted_connection_string}'
+
+        # If it is a semicolon-separated list of full URLs (e.g. sentinel://...;sentinel://...)
+        # NOTE: Azure connection strings are semicolon-separated too, and may
+        # embed endpoint URLs (e.g. ``BlobEndpoint=http://...``), so this split
+        # has to run after the Azure case above.
+        parts = url.split(';')
+        if len(parts) > 1 and any('://' in p for p in parts[1:]):
+            return ';'.join(sanitize_url(p.strip(), mask=mask) for p in parts)
 
         # Separate authority from path/query/fragment
         idx = len(rest)
